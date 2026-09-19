@@ -1,8 +1,8 @@
-# terraform-provider-updog
+# terraform-provider-updawg
 
-> *What's Updog? Not much. Your servers are up to date.*
+> *What's Updawg? Not much. Your servers are up to date.*
 
-A Terraform provider for managing Updog resources as code: groups, policies,
+A Terraform provider for managing Updawg resources as code: groups, policies,
 enrollment tokens and notification rules.
 
 **Language:** Go (the Terraform plugin framework requires it) ·
@@ -22,7 +22,7 @@ precisely the sensibility that makes "Renovate for your servers" appealing. Thos
 teams will not hand-click maintenance windows and canary labels into a web UI and
 call it managed.
 
-There is also a deeper fit: Updog's policies *are* code already. They're YAML
+There is also a deeper fit: Updawg's policies *are* code already. They're YAML
 with a published JSON Schema, versioned server-side, with a preview of their
 effect on the fleet. A Terraform provider is a short step from that, and it lets
 a policy change go through the same review process as the infrastructure it
@@ -34,18 +34,18 @@ That's the whole reason, and it's sufficient. Do not attempt a Rust provider.
 ## 2. How it fits with the other repos
 
 ```
-  customer's Terraform  ──►  terraform-provider-updog  ──► API token ──► api.updog.io
-                                                                          (updog-server)
-  updog-docs   → provider usage guide (registry docs mirror it)
-  updog-server → the API this provider consumes; its OpenAPI spec is the contract
+  customer's Terraform  ──►  terraform-provider-updawg  ──► API token ──► api.updawg.net
+                                                                          (updawg-server)
+  updawg-docs   → provider usage guide (registry docs mirror it)
+  updawg-server → the API this provider consumes; its OpenAPI spec is the contract
 ```
 
 | Repo | Relationship |
 |---|---|
-| `updog-server` | **The only dependency that matters.** Every resource here maps to Portal API endpoints. Those endpoints are public API the moment this provider ships — breaking them breaks customers' `terraform apply`. |
-| `updog-docs` | The provider guide lives in the docs site; the Terraform Registry docs are generated from this repo and should mirror it. |
-| `updog-portal` | Same resources, different surface. A resource managed by Terraform should be visibly marked as such in the portal, or people will edit it in the UI and be confused when it reverts. |
-| `updog-infra` | **Different thing, similar name.** `updog-infra` runs Updog's own cloud. This provider manages *customers'* Updog configuration. Say so at the top of both READMEs. |
+| `updawg-server` | **The only dependency that matters.** Every resource here maps to Portal API endpoints. Those endpoints are public API the moment this provider ships — breaking them breaks customers' `terraform apply`. |
+| `updawg-docs` | The provider guide lives in the docs site; the Terraform Registry docs are generated from this repo and should mirror it. |
+| `updawg-portal` | Same resources, different surface. A resource managed by Terraform should be visibly marked as such in the portal, or people will edit it in the UI and be confused when it reverts. |
+| `updawg-infra` | **Different thing, similar name.** `updawg-infra` runs Updawg's own cloud. This provider manages *customers'* Updawg configuration. Say so at the top of both READMEs. |
 
 ## 3. Planned resources and data sources
 
@@ -53,18 +53,18 @@ That's the whole reason, and it's sufficient. Do not attempt a Rust provider.
 
 | Resource | Maps to |
 |---|---|
-| `updog_group` | `POST/PATCH/DELETE /orgs/{org}/groups`, `PUT .../hosts` for static membership |
-| `updog_policy` | `POST/PUT/DELETE /orgs/{org}/policies` — the YAML body, versioned on update |
-| `updog_enrollment_token` | `POST/DELETE /orgs/{org}/enrollment-tokens`, with default group, labels, expiry, max uses |
-| `updog_notification_channel` | `POST/PATCH/DELETE /orgs/{org}/channels` (Slack, Teams, email, ntfy, PagerDuty, webhook) |
-| `updog_notification_rule` | `POST /orgs/{org}/notification-rules` |
-| `updog_api_token` | `POST/DELETE /orgs/{org}/api-tokens` |
-| `updog_member` *(later)* | `PATCH/DELETE /orgs/{org}/members/{user_id}` |
+| `updawg_group` | `POST/PATCH/DELETE /orgs/{org}/groups`, `PUT .../hosts` for static membership |
+| `updawg_policy` | `POST/PUT/DELETE /orgs/{org}/policies` — the YAML body, versioned on update |
+| `updawg_enrollment_token` | `POST/DELETE /orgs/{org}/enrollment-tokens`, with default group, labels, expiry, max uses |
+| `updawg_notification_channel` | `POST/PATCH/DELETE /orgs/{org}/channels` (Slack, Teams, email, ntfy, PagerDuty, webhook) |
+| `updawg_notification_rule` | `POST /orgs/{org}/notification-rules` |
+| `updawg_api_token` | `POST/DELETE /orgs/{org}/api-tokens` |
+| `updawg_member` *(later)* | `PATCH/DELETE /orgs/{org}/members/{user_id}` |
 
 ### Data sources
 
-`updog_hosts` (filterable, so Terraform can drive labels from existing fleet
-state), `updog_group`, `updog_policy`, `updog_releases`, `updog_organization`.
+`updawg_hosts` (filterable, so Terraform can drive labels from existing fleet
+state), `updawg_group`, `updawg_policy`, `updawg_releases`, `updawg_organization`.
 
 ### Explicitly out of scope
 
@@ -98,7 +98,7 @@ webhooks, not here.
 ## 5. Proposed layout
 
 ```
-terraform-provider-updog/
+terraform-provider-updawg/
 ├── main.go
 ├── internal/
 │   ├── provider/            # provider config, client wiring
@@ -112,13 +112,13 @@ terraform-provider-updog/
 ```
 
 Built on `terraform-plugin-framework` (not the legacy SDKv2). The API client
-should be **generated from `updog-server`'s `openapi.json`** so it cannot drift —
+should be **generated from `updawg-server`'s `openapi.json`** so it cannot drift —
 the same discipline the portal uses.
 
 ## 6. CI/CD
 
 - `go vet`, `golangci-lint`, unit tests.
-- **Acceptance tests** against a real (staging) Updog org — these are the only
+- **Acceptance tests** against a real (staging) Updawg org — these are the only
   tests that prove a provider works, and they need a dedicated test org and token
   in CI.
 - `tfplugindocs` generation with a drift check.
