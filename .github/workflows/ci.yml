@@ -21,12 +21,18 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # tfplugindocs reads the provider's schema through terraform.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
       # ⚠️ First, for the same reason as the portal's check:api — a stale
       # client makes every later failure a symptom.
-      - name: client.gen.go is what openapi.json generates
+      - name: client.gen.go and docs/ are what go generate makes
         run: |
           go generate ./...
-          git diff --exit-code -- internal/client
+          git add --intent-to-add docs
+          git diff --exit-code -- internal/client docs
 
       - name: go.mod is tidy
         run: |
@@ -78,6 +84,35 @@ jobs:
             export TF_ACC_TERRAFORM_PATH="$(command -v terraform)"
           fi
           go test -count=1 ./...
+
+  # DAWG-139: every resource against a real test organization. Skips (and
+  # passes) until the repository has the secrets UPDAWG_ACC_ORG and
+  # UPDAWG_ACC_TOKEN — see TestAcceptance for what the org needs. One run
+  # at a time, since the runs share the organization.
+  acceptance:
+    name: acceptance (real API)
+    if: github.event_name != 'schedule'
+    runs-on: [self-hosted, copenhagen]
+    concurrency: acceptance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: go test -run TestAcceptance
+        env:
+          TF_ACC: "1"
+          UPDAWG_ORG: ${{ secrets.UPDAWG_ACC_ORG }}
+          UPDAWG_API_TOKEN: ${{ secrets.UPDAWG_ACC_TOKEN }}
+        run: |
+          export TF_ACC_TERRAFORM_PATH="$(command -v terraform)"
+          go test -count=1 -v -run TestAcceptance ./internal/provider/
 
   # Daily: is the copy of the spec still what the API serves? When it fails,
   # `make spec`, `go generate ./...`, and look at what changed — a field the

@@ -1,0 +1,40 @@
+name: Release
+
+# A tag v1.2.3 builds and signs a draft GitHub release in the shape the
+# Terraform and OpenTofu registries read. Publishing the draft is by hand.
+#
+# ⚠️ Needs the repository secrets GPG_PRIVATE_KEY and GPG_PASSPHRASE, the key
+# whose public half is registered with the registry (DAWG-139). Without
+# them this fails at the import step, before building anything.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: [self-hosted, copenhagen]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - id: gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.gpg.outputs.fingerprint }}

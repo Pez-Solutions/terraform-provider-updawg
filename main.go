@@ -31,3 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
+// Registry documentation, from the schema and examples/. CI fails when docs/
+// is not what this generates.
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.25.0 generate --provider-name updawg
