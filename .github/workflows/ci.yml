@@ -41,6 +41,11 @@ jobs:
 
       - run: go vet ./...
 
+      # Reachable vulnerabilities only, in dependencies and the Go release
+      # go.mod names. A release built on a vulnerable toolchain ships it.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
       - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.12
