@@ -1,0 +1,25 @@
+# The client is generated from the API's own spec so it cannot drift from it
+# (DAWG-134). Only the tags the provider wraps: the rest of the API is
+# operations, not desired state (PLAN.md §3), and generating it would only
+# make the file longer.
+package: client
+generate:
+  client: true
+  models: true
+output-options:
+  # PATCH bodies tell "absent" (leave alone) from `null` (clear). A plain
+  # pointer with omitempty can only say the first.
+  nullable-type: true
+  include-tags:
+    - organizations
+    - groups
+    - policies
+    - enrollment
+    - notifications
+    - hosts
+    - releases
+compatibility:
+  # An enum value and a schema can share a name (`reboot` and `Reboot`);
+  # prefixing the constants with their type keeps them apart.
+  always-prefix-enum-values: true
+output: client.gen.go

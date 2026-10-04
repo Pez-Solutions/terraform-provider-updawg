@@ -1,0 +1,20 @@
+version: "2"
+linters:
+  enable:
+    - errorlint
+    - gocritic
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+  exclusions:
+    # The generated client is the spec's to fix, not ours.
+    generated: strict
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Pez-Solutions/terraform-provider-updawg

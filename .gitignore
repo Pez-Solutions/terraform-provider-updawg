@@ -1,0 +1,7 @@
+/terraform-provider-updawg
+/dist/
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+served.json
