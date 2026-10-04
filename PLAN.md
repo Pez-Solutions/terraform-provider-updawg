@@ -6,7 +6,7 @@ A Terraform provider for managing Updawg resources as code: groups, policies,
 enrollment tokens and notification rules.
 
 **Language:** Go (the Terraform plugin framework requires it) ·
-**Intended licence:** MPL-2.0 · **Currently:** private ·
+**Licence:** MPL-2.0 · **Public** since 2026-10-04 ·
 **Phase:** 3 — **started 2026-10-04** (DAWG-134 scaffold; see README.md)
 
 > The design document marks this repository public, MPL-2.0, and explicitly

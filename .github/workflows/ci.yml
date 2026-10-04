@@ -13,7 +13,7 @@ jobs:
   check:
     name: generate, lint, vet
     if: github.event_name != 'schedule'
-    runs-on: [self-hosted, copenhagen]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +51,7 @@ jobs:
   test:
     name: test (${{ matrix.cli }})
     if: github.event_name != 'schedule'
-    runs-on: [self-hosted, copenhagen]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -92,7 +92,7 @@ jobs:
   acceptance:
     name: acceptance (real API)
     if: github.event_name != 'schedule'
-    runs-on: [self-hosted, copenhagen]
+    runs-on: ubuntu-latest
     concurrency: acceptance
     steps:
       - uses: actions/checkout@v4
@@ -120,7 +120,7 @@ jobs:
   spec:
     name: openapi.json is what the API serves
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, copenhagen]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: |
