@@ -127,6 +127,8 @@ func (p *updawgProvider) Resources(_ context.Context) []func() resource.Resource
 	return []func() resource.Resource{
 		newEnrollmentTokenResource,
 		newGroupResource,
+		newChannelResource,
+		newRuleResource,
 		newPolicyResource,
 	}
 }

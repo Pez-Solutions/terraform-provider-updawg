@@ -8,9 +8,9 @@ groups, policies, enrollment tokens and notifications.
 **Not `updawg-infra`.** That repository runs Updawg's own cloud. This one
 manages *customers'* Updawg configuration.
 
-**Status:** `updawg_group`, `updawg_policy` and `updawg_enrollment_token`
-(DAWG-135), and the `updawg_organization` data source. Notification channels
-and rules come next (DAWG-136). Not published to either registry yet
+**Status:** `updawg_group`, `updawg_policy`, `updawg_enrollment_token`
+(DAWG-135), `updawg_notification_channel`, `updawg_notification_rule`
+(DAWG-136), and the `updawg_organization` data source. Not published to either registry yet
 (DAWG-139). See [PLAN.md](PLAN.md) for the design.
 
 ## Using it
@@ -81,6 +81,31 @@ provider "updawg" {
   place Terraform can keep it to pass to anything else. Treat state as a
   secret, and use `max_uses` and `expires_at` to limit what a leaked value is
   worth. Whether to keep it this way is DAWG-137.
+
+- **`updawg_notification_channel`**: the API stores the configuration
+  encrypted and never returns it, so a change made in the portal can't show as
+  drift. Give it as `config = jsonencode({...})` (sensitive, kept in state) or
+  as `config_wo` plus `config_wo_version` (never stored; Terraform/OpenTofu
+  1.11+; bump the version to resend). The configuration is only sent when it
+  changes, because a new one gives a webhook a new `signing_secret`.
+- **`updawg_notification_rule`**: deleting a channel deletes the rules that send
+  to it, and the next plan recreates them.
+
+```hcl
+resource "updawg_notification_channel" "ops" {
+  name              = "ops"
+  kind              = "slack"
+  config_wo         = jsonencode({ webhook_url = var.slack_webhook })
+  config_wo_version = 1
+}
+
+resource "updawg_notification_rule" "security" {
+  name        = "security to ops"
+  event_types = ["proposal.opened", "proposal.auto_merged"]
+  channel_ids = [updawg_notification_channel.ops.id]
+  filter      = { min_severity = "high" }
+}
+```
 
 Every resource imports with `org/id` or a bare `id`:
 

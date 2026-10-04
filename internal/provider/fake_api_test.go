@@ -23,6 +23,8 @@ type fake struct {
 	groups   map[string]*fakeGroup
 	policies map[string]*fakePolicy
 	tokens   map[string]*fakeToken
+	channels map[string]*fakeChannel
+	rules    map[string]*fakeRule
 	// hosts are the fleet: id to labels.
 	hosts map[string]map[string]string
 	// requests records "METHOD path body" for assertions about what was sent.
@@ -44,6 +46,21 @@ type fakePolicy struct {
 	deleted    bool
 }
 
+type fakeChannel struct {
+	name, kind string
+	// config is what was last sent, which no response ever repeats.
+	config  map[string]any
+	secrets int
+}
+
+type fakeRule struct {
+	name     string
+	events   []string
+	channels []string
+	enabled  bool
+	filter   map[string]any
+}
+
 type fakeToken struct {
 	name      string
 	labels    map[string]string
@@ -58,6 +75,8 @@ func newFake(t *testing.T) (*fake, *httptest.Server) {
 		groups:   map[string]*fakeGroup{},
 		policies: map[string]*fakePolicy{},
 		tokens:   map[string]*fakeToken{},
+		channels: map[string]*fakeChannel{},
+		rules:    map[string]*fakeRule{},
 		hosts: map[string]map[string]string{
 			"hst_1": {"tier": "web"},
 			"hst_2": {"tier": "web"},
@@ -82,6 +101,16 @@ func newFake(t *testing.T) (*fake, *httptest.Server) {
 	mux.HandleFunc("POST /v1/orgs/acme/enrollment-tokens", f.createToken)
 	mux.HandleFunc("GET /v1/orgs/acme/enrollment-tokens", f.listTokens)
 	mux.HandleFunc("DELETE /v1/orgs/acme/enrollment-tokens/{id}", f.revokeToken)
+
+	mux.HandleFunc("POST /v1/orgs/acme/notification-channels", f.saveChannel)
+	mux.HandleFunc("PATCH /v1/orgs/acme/notification-channels/{id}", f.saveChannel)
+	mux.HandleFunc("GET /v1/orgs/acme/notification-channels", f.listChannels)
+	mux.HandleFunc("DELETE /v1/orgs/acme/notification-channels/{id}", f.deleteChannel)
+
+	mux.HandleFunc("POST /v1/orgs/acme/notification-rules", f.saveRule)
+	mux.HandleFunc("PATCH /v1/orgs/acme/notification-rules/{id}", f.saveRule)
+	mux.HandleFunc("GET /v1/orgs/acme/notification-rules", f.listRules)
+	mux.HandleFunc("DELETE /v1/orgs/acme/notification-rules/{id}", f.deleteRule)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+testToken {
@@ -391,6 +420,143 @@ func (f *fake) revokeToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t.revoked = true
+	w.WriteHeader(204)
+}
+
+// --- notification channels ---
+
+func channelBody(id string, c *fakeChannel) map[string]any {
+	display := c.kind
+	for _, v := range c.config {
+		if s, ok := v.(string); ok && len(s) >= 4 {
+			display = c.kind + " …" + s[len(s)-4:]
+		}
+	}
+	return map[string]any{
+		"id": id, "name": c.name, "kind": c.kind, "display": display,
+		"created_at": "2026-10-04T08:00:00Z", "updated_at": "2026-10-04T08:00:00Z",
+	}
+}
+
+func (f *fake) saveChannel(w http.ResponseWriter, r *http.Request) {
+	var req map[string]json.RawMessage
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	id := r.PathValue("id")
+	status := 200
+	c := f.channels[id]
+	if id == "" {
+		id, status, c = f.id("nch"), 201, &fakeChannel{}
+		_ = json.Unmarshal(req["kind"], &c.kind)
+	} else if c == nil {
+		problem(w, 404, "not-found", "No such channel here")
+		return
+	}
+	if raw, ok := req["name"]; ok {
+		_ = json.Unmarshal(raw, &c.name)
+	}
+	configSet := false
+	if raw, ok := req["config"]; ok && string(raw) != "null" {
+		c.config = nil
+		_ = json.Unmarshal(raw, &c.config)
+		configSet = true
+	}
+	f.channels[id] = c
+	body := channelBody(id, c)
+	if configSet && c.kind == "webhook" {
+		c.secrets++
+		body["signing_secret"] = fmt.Sprintf("whsec_%s_%d", id, c.secrets)
+	}
+	reply(w, status, body)
+}
+
+func (f *fake) listChannels(w http.ResponseWriter, _ *http.Request) {
+	out := []any{}
+	for id, c := range f.channels {
+		out = append(out, channelBody(id, c))
+	}
+	reply(w, 200, out)
+}
+
+func (f *fake) deleteChannel(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := f.channels[id]; !ok {
+		problem(w, 404, "not-found", "No such channel here")
+		return
+	}
+	delete(f.channels, id)
+	// As the API does: the rules that sent to it go with it.
+	for rid, rule := range f.rules {
+		for _, c := range rule.channels {
+			if c == id {
+				delete(f.rules, rid)
+			}
+		}
+	}
+	w.WriteHeader(204)
+}
+
+// --- notification rules ---
+
+func ruleBody(id string, r *fakeRule) map[string]any {
+	filter := map[string]any{"min_severity": nil, "known_exploited": nil, "proposal_kinds": nil}
+	for k, v := range r.filter {
+		filter[k] = v
+	}
+	return map[string]any{
+		"id": id, "name": r.name, "event_types": r.events, "channel_ids": r.channels, "enabled": r.enabled,
+		"filter": filter, "created_at": "2026-10-04T08:00:00Z", "updated_at": "2026-10-04T08:00:00Z",
+	}
+}
+
+func (f *fake) saveRule(w http.ResponseWriter, r *http.Request) {
+	var req map[string]json.RawMessage
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	id := r.PathValue("id")
+	status := 200
+	rule := f.rules[id]
+	if id == "" {
+		id, status, rule = f.id("nru"), 201, &fakeRule{enabled: true}
+	} else if rule == nil {
+		problem(w, 404, "not-found", "No such rule here")
+		return
+	}
+	set := func(key string, into any) {
+		if raw, ok := req[key]; ok && string(raw) != "null" {
+			_ = json.Unmarshal(raw, into)
+		}
+	}
+	set("name", &rule.name)
+	set("event_types", &rule.events)
+	set("channel_ids", &rule.channels)
+	set("enabled", &rule.enabled)
+	if raw, ok := req["filter"]; ok && string(raw) != "null" {
+		rule.filter = map[string]any{}
+		_ = json.Unmarshal(raw, &rule.filter)
+	}
+	for _, c := range rule.channels {
+		if _, ok := f.channels[c]; !ok {
+			problem(w, 400, "invalid-request", "Not a channel of this organization: "+c)
+			return
+		}
+	}
+	f.rules[id] = rule
+	reply(w, status, ruleBody(id, rule))
+}
+
+func (f *fake) listRules(w http.ResponseWriter, _ *http.Request) {
+	out := []any{}
+	for id, r := range f.rules {
+		out = append(out, ruleBody(id, r))
+	}
+	reply(w, 200, out)
+}
+
+func (f *fake) deleteRule(w http.ResponseWriter, r *http.Request) {
+	if _, ok := f.rules[r.PathValue("id")]; !ok {
+		problem(w, 404, "not-found", "No such rule here")
+		return
+	}
+	delete(f.rules, r.PathValue("id"))
 	w.WriteHeader(204)
 }
 
