@@ -124,7 +124,11 @@ func (p *updawgProvider) Configure(ctx context.Context, req provider.ConfigureRe
 }
 
 func (p *updawgProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		newEnrollmentTokenResource,
+		newGroupResource,
+		newPolicyResource,
+	}
 }
 
 func (p *updawgProvider) DataSources(_ context.Context) []func() datasource.DataSource {

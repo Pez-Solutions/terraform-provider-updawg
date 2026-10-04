@@ -8,10 +8,10 @@ groups, policies, enrollment tokens and notifications.
 **Not `updawg-infra`.** That repository runs Updawg's own cloud. This one
 manages *customers'* Updawg configuration.
 
-**Status:** scaffold (DAWG-134). The provider configures, authenticates and
-serves one data source, `updawg_organization`. Resources come next (DAWG-135,
-DAWG-136). Not published to either registry yet (DAWG-139). See
-[PLAN.md](PLAN.md) for the design.
+**Status:** `updawg_group`, `updawg_policy` and `updawg_enrollment_token`
+(DAWG-135), and the `updawg_organization` data source. Notification channels
+and rules come next (DAWG-136). Not published to either registry yet
+(DAWG-139). See [PLAN.md](PLAN.md) for the design.
 
 ## Using it
 
@@ -21,7 +21,21 @@ provider "updawg" {
   # api_token from UPDAWG_API_TOKEN; keep it out of .tf files
 }
 
-data "updawg_organization" "this" {}
+resource "updawg_group" "web" {
+  name           = "web"
+  label_selector = { tier = "web" }
+}
+
+resource "updawg_policy" "nightly" {
+  yaml = file("${path.module}/policies/nightly.yaml")
+}
+
+resource "updawg_enrollment_token" "web" {
+  name       = "web tier"
+  labels     = { tier = "web" }
+  max_uses   = 20
+  expires_at = "2027-01-01T00:00:00Z"
+}
 ```
 
 | Setting     | Environment        | Default                  |
@@ -47,6 +61,33 @@ provider "updawg" {
 }
 ```
 
+## What to know about each resource
+
+- **`updawg_policy`** takes the YAML document as it is, byte for byte. `plan`
+  sends it to the API's validator, so a document that does not compile fails
+  the plan with its line and column, and the plan shows the name, priority
+  and enabled it will have. If the validator can't be reached, the plan
+  carries on with a warning. An edit made in the portal shows as a change to
+  `yaml`; applying puts your text back as a new version. Deleting is soft, so
+  proposals the policy made keep their reason.
+- **`updawg_group`** manages the name, description and label selector. Hand-picked
+  members (`hosts`) are managed only when you set them. Policies select groups by
+  name, so a rename or delete warns about every policy still naming the
+  group.
+- **`updawg_enrollment_token`** can't be changed in place (the API has no way
+  to), so any change issues a new token and revokes the old one. One revoked in
+  the portal is planned for re-issue. ⚠️ **The token's value is stored in
+  state.** The API shows it once and keeps only a hash, so state is the only
+  place Terraform can keep it to pass to anything else. Treat state as a
+  secret, and use `max_uses` and `expires_at` to limit what a leaked value is
+  worth. Whether to keep it this way is DAWG-137.
+
+Every resource imports with `org/id` or a bare `id`:
+
+```sh
+terraform import updawg_group.web acme/grp_…
+```
+
 ## Working on it
 
 ```sh
@@ -56,7 +97,8 @@ make lint
 ```
 
 The tests serve the provider in-process to the real CLI and point it at a
-fake API (`internal/provider/provider_test.go`). They prove the provider
+stateful fake API (`internal/provider/fake_api_test.go`), which answers in
+the spec's wire format and records what it was sent. They prove the provider
 drives Terraform correctly, not that it agrees with the real API: that is the
 acceptance tests' job (DAWG-139).
 
