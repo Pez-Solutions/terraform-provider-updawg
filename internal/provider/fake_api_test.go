@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -86,6 +87,9 @@ func newFake(t *testing.T) (*fake, *httptest.Server) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/orgs/acme", func(w http.ResponseWriter, _ *http.Request) { reply(w, 200, org("acme", "Acme")) })
 
+	mux.HandleFunc("GET /v1/orgs/acme/hosts", f.listHosts)
+	mux.HandleFunc("GET /v1/orgs/acme/groups", f.listGroups)
+	mux.HandleFunc("GET /v1/orgs/acme/policies", f.listPolicies)
 	mux.HandleFunc("POST /v1/orgs/acme/groups", f.createGroup)
 	mux.HandleFunc("GET /v1/orgs/acme/groups/{id}", f.showGroup)
 	mux.HandleFunc("PATCH /v1/orgs/acme/groups/{id}", f.updateGroup)
@@ -151,6 +155,66 @@ func reply(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+// --- hosts ---
+
+// hostPage is small so that two pages of a three-host fleet test paging.
+const hostPage = 2
+
+func (f *fake) listHosts(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	ids := make([]string, 0, len(f.hosts))
+	for id, labels := range f.hosts {
+		match := true
+		for _, sel := range q["label"] {
+			k, v, _ := strings.Cut(sel, "=")
+			if labels[k] != v {
+				match = false
+			}
+		}
+		if match {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	start := 0
+	if after := q.Get("after"); after != "" {
+		start = sort.SearchStrings(ids, after) + 1
+	}
+	end := min(start+hostPage, len(ids))
+	page := []any{}
+	for _, id := range ids[start:end] {
+		page = append(page, map[string]any{
+			"id": id, "hostname": strings.Replace(id, "hst_", "host-", 1), "labels": f.hosts[id],
+			"distro": "ubuntu", "distro_version": "24.04", "arch": "x86_64", "status": "active",
+			"agent_mode": "full", "agent_permissions": []string{}, "machine_id": id, "os_family": "debian",
+			"services_need_restart": []string{}, "enrolled_at": "2026-10-01T00:00:00Z", "reboot_required": id == "hst_1",
+		})
+	}
+	body := map[string]any{"hosts": page, "total": len(ids)}
+	if end < len(ids) {
+		body["next"] = ids[end-1]
+	}
+	reply(w, 200, body)
+}
+
+func (f *fake) listGroups(w http.ResponseWriter, _ *http.Request) {
+	out := []any{}
+	for id, g := range f.groups {
+		out = append(out, f.groupBody(id, g))
+	}
+	reply(w, 200, out)
+}
+
+func (f *fake) listPolicies(w http.ResponseWriter, _ *http.Request) {
+	out := []any{}
+	for id, p := range f.policies {
+		if !p.deleted {
+			out = append(out, policyBody(id, p))
+		}
+	}
+	reply(w, 200, out)
 }
 
 // --- groups ---

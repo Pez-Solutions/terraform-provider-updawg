@@ -135,7 +135,10 @@ func (p *updawgProvider) Resources(_ context.Context) []func() resource.Resource
 
 func (p *updawgProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		newGroupDataSource,
+		newHostsDataSource,
 		newOrganizationDataSource,
+		newPolicyDataSource,
 	}
 }
 

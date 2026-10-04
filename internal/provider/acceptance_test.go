@@ -30,6 +30,12 @@ func TestAcceptance(t *testing.T) {
 		return fmt.Sprintf(`
 data "updawg_organization" "this" {}
 
+data "updawg_hosts" "all" {}
+
+data "updawg_group" "acc" {
+  name = updawg_group.acc.name
+}
+
 resource "updawg_group" "acc" {
   name           = "tf-acc-%[1]s"
   description    = %[2]q
@@ -76,6 +82,8 @@ resource "updawg_notification_rule" "acc" {
 				Config: cfg("made by the provider's acceptance test", 900),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("data.updawg_organization.this", "plan"),
+					resource.TestCheckResourceAttrSet("data.updawg_hosts.all", "ids.#"),
+					resource.TestCheckResourceAttrPair("data.updawg_group.acc", "id", "updawg_group.acc", "id"),
 					resource.TestCheckResourceAttr("updawg_policy.acc", "enabled", "false"),
 					resource.TestCheckResourceAttr("updawg_policy.acc", "version", "1"),
 					resource.TestCheckResourceAttrSet("updawg_enrollment_token.acc", "token"),
