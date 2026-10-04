@@ -144,6 +144,10 @@ func (r *policyResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 		return
 	default:
 		v := res.JSON200
+		r.preview(ctx, org, plan.YAML.ValueString(), state.ID, resp)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 		plan.Name = fromNullableString(v.Name)
 		plan.Priority = types.Int64Unknown()
 		if v.Priority.IsSpecified() && !v.Priority.IsNull() {
@@ -155,6 +159,32 @@ func (r *policyResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 		}
 	}
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
+
+// preview asks the API what saving the document would do to the fleet and
+// puts the answer in the plan as a warning (DAWG-138) — the one place a
+// plan can say something in words. A preview that cannot be had is a
+// warning too, never a failed plan: it informs a decision, it is not a
+// check. The one exception is a name another live policy holds, which is
+// what saving would answer as well.
+func (r *policyResource) preview(ctx context.Context, org, yaml string, replaces types.String, resp *resource.ModifyPlanResponse) {
+	body := client.PreviewRequest{Yaml: nullable.NewNullableWithValue(yaml)}
+	if !replaces.IsNull() && !replaces.IsUnknown() {
+		body.Replaces = nullable.NewNullableWithValue(replaces.ValueString())
+	}
+	res, err := r.data.client.PoliciesPreviewWithResponse(ctx, org, body)
+	switch {
+	case err != nil:
+		resp.Diagnostics.AddWarning("No preview of this policy change", "The API could not be asked: "+err.Error())
+	case res.StatusCode() == http.StatusConflict:
+		resp.Diagnostics.AddAttributeError(path.Root("yaml"), "The policy's name is taken", client.ProblemFrom(res.HTTPResponse, res.Body).Error())
+	case res.JSON200 == nil:
+		resp.Diagnostics.AddWarning("No preview of this policy change", client.ProblemFrom(res.HTTPResponse, res.Body).Error())
+	default:
+		if summary, ok := previewSummary(res.JSON200); ok {
+			resp.Diagnostics.AddAttributeWarning(path.Root("yaml"), "What this policy change would do", summary)
+		}
+	}
 }
 
 // policyProblem puts the line and column in front of the API's message, the
