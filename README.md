@@ -10,7 +10,8 @@ manages *customers'* Updawg configuration.
 
 **Status:** `updawg_group`, `updawg_policy`, `updawg_enrollment_token`
 (DAWG-135), `updawg_notification_channel`, `updawg_notification_rule`
-(DAWG-136), and the `updawg_organization` data source. Not published to either registry yet
+(DAWG-136), and the data sources `updawg_organization`, `updawg_hosts`,
+`updawg_group` and `updawg_policy`. Not published to either registry yet
 (DAWG-139). See [PLAN.md](PLAN.md) for the design.
 
 ## Using it
