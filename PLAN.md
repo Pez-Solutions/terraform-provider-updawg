@@ -7,7 +7,7 @@ enrollment tokens and notification rules.
 
 **Language:** Go (the Terraform plugin framework requires it) ·
 **Intended licence:** MPL-2.0 · **Currently:** private ·
-**Phase:** 3 (week 21 onwards) — **not started**
+**Phase:** 3 — **started 2026-10-04** (DAWG-134 scaffold; see README.md)
 
 > The design document marks this repository public, MPL-2.0, and explicitly
 > "later". It exists now so the Portal API can be designed with it in mind rather

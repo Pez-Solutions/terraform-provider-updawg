@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # The spec job: the API changes on its own schedule, not on this repo's.
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: generate, lint, vet
+    if: github.event_name != 'schedule'
+    runs-on: [self-hosted, copenhagen]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # ⚠️ First, for the same reason as the portal's check:api — a stale
+      # client makes every later failure a symptom.
+      - name: client.gen.go is what openapi.json generates
+        run: |
+          go generate ./...
+          git diff --exit-code -- internal/client
+
+      - name: go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - run: go vet ./...
+
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12
+
+  # Both binaries, since the provider is meant for both registries. The
+  # tests serve the provider in-process to the real CLI against a fake API;
+  # acceptance tests against a real organization are DAWG-139.
+  test:
+    name: test (${{ matrix.cli }})
+    if: github.event_name != 'schedule'
+    runs-on: [self-hosted, copenhagen]
+    strategy:
+      fail-fast: false
+      matrix:
+        cli: [terraform, tofu]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - if: matrix.cli == 'terraform'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - if: matrix.cli == 'tofu'
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+
+      - name: go test
+        run: |
+          if [ "${{ matrix.cli }}" = tofu ]; then
+            # The test harness addresses the provider as
+            # registry.terraform.io/<namespace>/updawg; tofu finds it only
+            # under the namespace it was told.
+            export TF_ACC_TERRAFORM_PATH="$(command -v tofu)" TF_ACC_PROVIDER_NAMESPACE=hashicorp
+          else
+            export TF_ACC_TERRAFORM_PATH="$(command -v terraform)"
+          fi
+          go test -count=1 ./...
+
+  # Daily: is the copy of the spec still what the API serves? When it fails,
+  # `make spec`, `go generate ./...`, and look at what changed — a field the
+  # provider reads may have moved.
+  spec:
+    name: openapi.json is what the API serves
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, copenhagen]
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          curl -fsS https://api.updawg.net/openapi.json -o served.json
+          cmp internal/client/openapi.json served.json
