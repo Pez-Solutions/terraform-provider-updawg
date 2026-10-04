@@ -1,0 +1,1 @@
+terraform import updawg_notification_rule.security acme/nru_0193a4b2c1d0

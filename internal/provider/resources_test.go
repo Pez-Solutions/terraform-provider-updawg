@@ -108,16 +108,16 @@ func TestGroupDeletedInThePortalIsRecreated(t *testing.T) {
 const policyV1 = `name: nightly security
 priority: 10
 rules:
-  - match: security
-    apply: asap
+  - match: { kind: security }
+    action: auto_merge
 `
 
 const policyV2 = `name: nightly security
 priority: 20
 enabled: false
 rules:
-  - match: security
-    apply: asap
+  - match: { kind: security }
+    action: auto_merge
 `
 
 func TestPolicyLifecycle(t *testing.T) {
