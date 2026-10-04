@@ -121,3 +121,10 @@ func equal(a, b []time.Duration) bool {
 	}
 	return true
 }
+
+func TestProblemFromAnUnreadableSuccess(t *testing.T) {
+	resp := &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/plain"}}}
+	if got := ProblemFrom(resp, []byte(`{}`)).Error(); got != "200 Unexpected response: the API answered text/plain the provider could not read" {
+		t.Errorf("got %q", got)
+	}
+}

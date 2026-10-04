@@ -132,6 +132,15 @@ func (p *Problem) Name() string {
 // proxy in the way may answer with something else, which is kept as the
 // detail so it is not lost.
 func ProblemFrom(resp *http.Response, body []byte) *Problem {
+	// A success the generated client could not read: the body is not
+	// labelled JSON, or not the shape the spec promises.
+	if resp.StatusCode < 300 {
+		return &Problem{
+			Status: resp.StatusCode,
+			Title:  "Unexpected response",
+			Detail: "the API answered " + resp.Header.Get("Content-Type") + " the provider could not read",
+		}
+	}
 	var doc ProblemBody
 	if err := json.Unmarshal(body, &doc); err == nil && doc.Title != "" {
 		p := &Problem{Status: resp.StatusCode, Type: doc.Type, Title: doc.Title}

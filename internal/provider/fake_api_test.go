@@ -93,6 +93,7 @@ func newFake(t *testing.T) (*fake, *httptest.Server) {
 	mux.HandleFunc("DELETE /v1/orgs/acme/groups/{id}", f.deleteGroup)
 
 	mux.HandleFunc("POST /v1/orgs/acme/policies/validate", f.validatePolicy)
+	mux.HandleFunc("POST /v1/orgs/acme/policies/preview", f.previewPolicy)
 	mux.HandleFunc("POST /v1/orgs/acme/policies", f.savePolicy)
 	mux.HandleFunc("PUT /v1/orgs/acme/policies/{id}", f.savePolicy)
 	mux.HandleFunc("GET /v1/orgs/acme/policies/{id}", f.showPolicy)
@@ -314,6 +315,33 @@ func (f *fake) validatePolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, 200, map[string]any{"valid": true, "errors": []any{}, "name": p.name, "priority": p.priority, "enabled": p.enabled, "rules": 1})
+}
+
+// previewPolicy answers as the API does for a document whose name another
+// live policy holds; otherwise a preview of nothing changing, since what a
+// preview says is the server's business and previewSummary has its own
+// tests.
+func (f *fake) previewPolicy(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		YAML     string `json:"yaml"`
+		Replaces string `json:"replaces"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	p, bad := compile(req.YAML)
+	if bad != nil {
+		problem(w, 400, "invalid-request", bad["detail"].(string))
+		return
+	}
+	for id, o := range f.policies {
+		if id != req.Replaces && !o.deleted && o.name == p.name {
+			problem(w, 409, "name-taken", "A live policy already has that name")
+			return
+		}
+	}
+	reply(w, 200, map[string]any{
+		"opening": []any{}, "closing": []any{}, "changing": []any{}, "unchanged": []any{}, "dropped": []any{}, "newly_covered": []any{},
+		"hosts_evaluated": len(f.hosts), "hosts_total": len(f.hosts), "complete": true, "would_auto_merge": 0, "changes_nothing": true,
+	})
 }
 
 func (f *fake) savePolicy(w http.ResponseWriter, r *http.Request) {
