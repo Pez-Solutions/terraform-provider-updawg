@@ -90,7 +90,10 @@ provider "updawg" {
   state.** The API shows it once and keeps only a hash, so state is the only
   place Terraform can keep it to pass to anything else. Treat state as a
   secret, and use `max_uses` and `expires_at` to limit what a leaked value is
-  worth. Whether to keep it this way is DAWG-137.
+  worth. This is decided (DAWG-137): write-only attributes are for values sent
+  in, not values the API hands back, and an ephemeral resource would issue a
+  new token on every run and still land in state through the instance's
+  ordinary `user_data` or metadata argument.
 
 - **`updawg_notification_channel`**: the API stores the configuration
   encrypted and never returns it, so a change made in the portal can't show as
@@ -143,8 +146,11 @@ acceptance tests' job (DAWG-139).
 test that proves the provider and the API agree. It skips unless `TF_ACC=1`,
 `UPDAWG_ORG` and `UPDAWG_API_TOKEN` are set. Use a dedicated organization on
 the Business plan, with a token holding `read`, `groups`, `policy`,
-`enrollment` and `integrations`. CI runs it once the repository has
-`UPDAWG_ACC_ORG` and `UPDAWG_ACC_TOKEN`.
+`enrollment` and `integrations`. CI runs it on every push to main and on
+pull requests from this repository, against the organization
+`terraform-acceptance` (Business, owned by the bot account
+`admin@updawg.net`), with the secrets `UPDAWG_ACC_ORG` and
+`UPDAWG_ACC_TOKEN`.
 
 ### Releasing
 
