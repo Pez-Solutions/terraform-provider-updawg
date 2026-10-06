@@ -22,7 +22,7 @@ jobs:
           go-version-file: go.mod
 
       # tfplugindocs reads the provider's schema through terraform.
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
 
@@ -69,7 +69,7 @@ jobs:
           go-version-file: go.mod
 
       - if: matrix.cli == 'terraform'
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
 
@@ -106,7 +106,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
 
